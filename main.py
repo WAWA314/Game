@@ -1,6 +1,6 @@
 import tkinter as tk
 
-from src.Calpkg.calculator import add, subtract
+from src.Calpkg.pycache.calculator import add, subtract
 from src.Calpkg.gamepkg.game_center import GameApp
 
 
