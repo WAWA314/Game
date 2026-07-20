@@ -24,9 +24,9 @@ WIN_LINES = [
     (0, 4, 8), (2, 4, 6)
 ]
 
-CELL_SIZE = 24
-GRID_W = 20
-GRID_H = 20
+CELL_SIZE = 20
+GRID_W = 16
+GRID_H = 16
 GAME_WIDTH = CELL_SIZE * GRID_W
 GAME_HEIGHT = CELL_SIZE * GRID_H
 
@@ -35,17 +35,47 @@ SPEED_LEVELS = {"ช้า": 160, "ปกติ": 110, "เร็ว": 70}
 
 # ================= App Shell =================
 class GameApp:
-    def __init__(self, root):
+    def __init__(self, root, home_callback=None, container=None):
         self.root = root
+        self.home_callback = home_callback
+
+        # ใช้ container ที่ส่งมา ถ้ามี (จาก main.py) หรือสร้างใหม่ (รันโดยตรง)
+        if container is not None:
+            self.container = container
+        else:
+            self.container = tk.Frame(self.root, bg=BG_COLOR)
+            self.container.pack(fill="both", expand=True)
+
         self.root.title("Mini Game Center")
         self.root.configure(bg=BG_COLOR)
-        self.root.resizable(False, False)
-
-        self.container = tk.Frame(self.root, bg=BG_COLOR)
-        self.container.pack(fill="both", expand=True)
-
+        self.root.resizable(True, True)
         self.current_frame = None
         self.show_menu()
+
+    def fit_to_screen(self):
+        """จัดหน้าต่างให้อยู่กึ่งกลางจอ และไม่ให้สูง/กว้างเกินขอบเขตหน้าจอ"""
+        # เคลียร์ขนาดที่เคย fix ไว้ก่อน ไม่งั้น Tkinter จะจำขนาดเก่าค้างไว้
+        # แล้วไม่ยอมคำนวณขนาดใหม่ให้พอดีกับเนื้อหาจริง
+        self.root.geometry("")
+        self.root.update_idletasks()
+
+        req_w = self.root.winfo_reqwidth()
+        req_h = self.root.winfo_reqheight()
+
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+
+        margin = 60  # กันพื้นที่ taskbar/แถบหัวหน้าต่าง
+        max_w = screen_w - 20
+        max_h = screen_h - margin
+
+        win_w = min(req_w, max_w)
+        win_h = min(req_h, max_h)
+
+        x = max((screen_w - win_w) // 2, 0)
+        y = max((screen_h - win_h) // 2 - 20, 0)
+
+        self.root.geometry(f"{win_w}x{win_h}+{x}+{y}")
 
     def clear_container(self):
         for widget in self.container.winfo_children():
@@ -83,12 +113,30 @@ class GameApp:
             self.container, text="เลือกเกม แล้วกด 'กลับเมนู' เพื่อสลับได้ตลอดเวลา",
             font=("Segoe UI", 9), bg=BG_COLOR, fg=MUTED_COLOR
         )
-        footer.pack(pady=(30, 20))
+        footer.pack(pady=(20, 6))
 
-    def make_menu_card(self, parent, icon, title, desc, color, command, row):
-        card = tk.Frame(parent, bg=BOARD_COLOR, padx=24, pady=20, cursor="hand2")
-        card.grid(row=row, column=0, pady=8, sticky="ew")
-        parent.grid_columnconfigure(0, weight=1)
+        bottom_frame = tk.Frame(self.container, bg=BG_COLOR)
+        bottom_frame.pack(pady=(0, 24))
+
+        if self.home_callback is not None:
+            tk.Button(
+                bottom_frame, text="🏠 เมนูหลัก", font=("Segoe UI", 10, "bold"),
+                bg=BOARD_COLOR, fg=TEXT_COLOR, relief="flat", padx=14, pady=6,
+                activebackground="#334155", command=self.home_callback
+            ).grid(row=0, column=0, padx=6)
+
+        tk.Button(
+            bottom_frame, text="✖ ออกจากโปรแกรม", font=("Segoe UI", 10, "bold"),
+            bg="#7f1d1d", fg="white", relief="flat", padx=14, pady=6,
+            activebackground="#991b1b", command=self.root.destroy
+        ).grid(row=0, column=1, padx=6)
+
+        self.fit_to_screen()
+
+    def make_menu_card(self, parent, icon, title, desc, color, command, col):
+        card = tk.Frame(parent, bg=BOARD_COLOR, padx=20, pady=20, cursor="hand2")
+        card.grid(row=0, column=col, padx=8, sticky="nsew")
+        parent.grid_columnconfigure(col, weight=1)
 
         icon_label = tk.Label(card, text=icon, font=("Segoe UI", 26), bg=BOARD_COLOR, fg=color)
         icon_label.pack()
@@ -112,10 +160,12 @@ class GameApp:
     def show_ox_game(self):
         self.clear_container()
         OXGame(self.container, back_callback=self.show_menu)
+        self.fit_to_screen()
 
     def show_snake_game(self):
         self.clear_container()
         SnakeGame(self.container, root_ref=self.root, back_callback=self.show_menu)
+        self.fit_to_screen()
 
 
 def make_back_button(parent, command):
@@ -599,5 +649,5 @@ class SnakeGame:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = GameApp(root)
+    GameApp(root)
     root.mainloop()
