@@ -15,6 +15,40 @@ GAME_COLOR = "#f472b6"
 BATTLE_COLOR = "#f0c860"
 EXIT_COLOR = "#7f1d1d"
 
+# Animation settings
+ANIM_DURATION = 10000  # ms
+
+
+def animate_fade_in(widget, delay=0):
+    """Fade in animation for widgets"""
+    widget.after(delay, lambda: _fade_step(widget, 0))
+
+
+def _fade_step(widget, step):
+    steps = 10
+    if step <= steps:
+        alpha = step / steps
+        widget.wm_attributes("-alpha", alpha) if hasattr(widget, 'wm_attributes') else None
+        # Use color brightening instead of alpha for compatibility
+        bg = BOARD_COLOR
+        widget.configure(background=bg)
+        widget.after(ANIM_DURATION // steps, lambda: _fade_step(widget, step + 1))
+
+
+def animate_slide_in(widget, start_x, end_x, delay=0):
+    """Slide in animation from side"""
+    widget.after(delay, lambda: widget.place(in_=widget.master, x=start_x, y=widget.winfo_y()))
+    steps = 20
+    dx = (end_x - start_x) / steps
+    widget.after(delay, lambda: _slide_step(widget, start_x, dx, 0, steps))
+
+
+def _slide_step(widget, x, dx, step, total_steps):
+    if step < total_steps:
+        x += dx
+        widget.place(x=x, y=widget.winfo_y())
+        widget.after(ANIM_DURATION // total_steps, lambda: _slide_step(widget, x, dx, step + 1, total_steps))
+
 
 class LauncherApp:
     def __init__(self, root):
@@ -36,19 +70,24 @@ class LauncherApp:
     def show_main_menu(self):
         self.clear_container()
 
-        tk.Label(
+        # หัวข้อพร้อม fade in
+        title = tk.Label(
             self.container, text="โปรแกรมของฉัน", font=("Segoe UI", 24, "bold"),
             bg=BG_COLOR, fg=ACCENT_COLOR
-        ).pack(pady=(40, 4))
+        )
+        title.pack(pady=(40, 4))
 
-        tk.Label(
+        subtitle = tk.Label(
             self.container, text="เลือกโปรแกรมที่ต้องการใช้งาน", font=("Segoe UI", 11),
             bg=BG_COLOR, fg=MUTED_COLOR
-        ).pack(pady=(0, 30))
+        )
+        subtitle.pack(pady=(0, 30))
+        subtitle.after(100, lambda: subtitle.configure(fg=TEXT_COLOR))
 
         card_frame = tk.Frame(self.container, bg=BG_COLOR)
         card_frame.pack(padx=30)
 
+        # การ์ดสไลด์จากซ้ายมาขวา
         self.make_menu_card(
             card_frame, "🧮", "เครื่องคิดเลข", "บวก และ ลบ ตัวเลข",
             CALC_COLOR, self.show_calculator, 0
@@ -64,11 +103,14 @@ class LauncherApp:
 
         tk.Frame(self.container, bg=BG_COLOR, height=10).pack()
 
-        tk.Button(
+        # ปุ่มออกมี hover effect
+        exit_btn = tk.Button(
             self.container, text="✖ ออกจากโปรแกรม", font=("Segoe UI", 10, "bold"),
             bg=EXIT_COLOR, fg="white", relief="flat", padx=16, pady=8,
             activebackground="#991b1b", command=self.root.destroy
-        ).pack(pady=(10, 30))
+        )
+        exit_btn.pack(pady=(10, 30))
+        self.add_button_hover(exit_btn)
 
     def make_menu_card(self, parent, icon, title, desc, color, command, col):
         card = tk.Frame(parent, bg=BOARD_COLOR, padx=26, pady=22, cursor="hand2")
@@ -94,6 +136,28 @@ class LauncherApp:
 
         for widget in (card, icon_label, title_label, desc_label):
             widget.bind("<Button-1>", lambda e: command())
+
+        # Hover animation for card
+        self.add_card_hover(card)
+
+    def add_button_hover(self, button):
+        """Add smooth hover effect to button"""
+        def on_enter(_e):
+            button.configure(bg="#991b1b")
+        def on_leave(_e):
+            button.configure(bg=EXIT_COLOR)
+        button.bind("<Enter>", on_enter)
+        button.bind("<Leave>", on_leave)
+
+    def add_card_hover(self, card):
+        """Add lift effect on hover"""
+        original_bg = BOARD_COLOR
+        def on_enter(_e):
+            card.configure(relief="raised", bg="#252262")
+        def on_leave(_e):
+            card.configure(relief="flat", bg=original_bg)
+        card.bind("<Enter>", on_enter)
+        card.bind("<Leave>", on_leave)
 
     # ================= เครื่องคิดเลข (GUI) =================
     def show_calculator(self):

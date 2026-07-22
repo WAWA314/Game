@@ -113,8 +113,19 @@ def make_enemies():
     return [
         Unit("Flare Wisp",  55, 0, 16, 3, 12, is_enemy=True, icon="🔥", color="#e0603a"),
         Unit("Flare Wisp",  55, 0, 16, 3, 13, is_enemy=True, icon="🔥", color="#e0603a"),
-        Unit("Stone Fang",  180, 0, 20, 9, 7,  is_enemy=True, icon="🐗", color="#9a8a70"),
+        Unit("Stone Fang",  180, 0, 20, 9, 7,  is_enemy=True, icon="🔱", color="#9a8a70"),  # เปลี่ยนเป็นช้อนกัน (pitchfork)
     ]
+
+
+# ---------------------------------------------------------
+# Animation Helpers
+# ---------------------------------------------------------
+def float_animation(offset, amplitude=6):
+    """Update floating animation offset - bounces up and down"""
+    offset[0] += offset[1]  # increment by direction
+    if offset[0] > amplitude or offset[0] < -amplitude:
+        offset[1] *= -1  # reverse direction
+    return offset[0]
 
 
 # ---------------------------------------------------------
@@ -148,6 +159,10 @@ class BattleDemo:
         self.log_lines = []
         self.target_index = 0
 
+        # Floating animation state
+        self.float_offset = 0
+        self.float_direction = 1
+
         self.canvas = tk.Canvas(container, width=W, height=H, highlightthickness=0, bg=COL_BG)
         self.canvas.pack()
 
@@ -167,6 +182,50 @@ class BattleDemo:
 
         self.advance_to_next_turn()
         self.render()
+        self.animate_floating()
+
+    def animate_floating(self):
+        """Run floating animation loop"""
+        self.float_offset += self.float_direction
+        if self.float_offset > 6 or self.float_offset < -6:
+            self.float_direction *= -1
+        # Re-render sprites with float offset (always, even in end phase)
+        self._redraw_sprites()
+        self.root.after(50, self.animate_floating)
+
+    def _redraw_sprites(self):
+        """Redraw just the sprites (enemies + party) with float animation"""
+        c = self.canvas
+        c.delete("sprite")  # Clear old sprites only
+        # Redraw enemies with float (เสมอ - แม้ใน end phase ก็ยังทำอนิเมชั่น)
+        n = len(self.enemies)
+        spacing = 200
+        start_x = W // 2 - (spacing * (n - 1)) // 2
+        for i, e in enumerate(self.enemies):
+            cx = start_x + i * spacing
+            cy = 230 + self.float_offset * (-1 if i % 2 else 1)
+            active = (self.current_unit is e and self.phase == "enemy_turn")
+            targetable = self.phase == "select_target"
+
+            if not e.is_alive():
+                c.create_text(cx, cy, text="💨", font=("Consolas", 30), fill=COL_DIM, tags="sprite")
+                continue
+
+            ring_color = COL_SEL if (active or targetable) else ""
+            if ring_color:
+                c.create_oval(cx-52, cy-52, cx+52, cy+52, outline=ring_color, width=3, tags="sprite")
+            c.create_text(cx, cy, text=e.icon, font=("Consolas", 46), tags="sprite")
+
+        # Redraw party with float
+        spacing = 110
+        for i, p in enumerate(self.party):
+            cx = W - 260 + i * spacing
+            cy = 330 + self.float_offset
+            active = (self.current_unit is p and self.phase in ("select_command", "select_target"))
+            if active:
+                c.create_oval(cx-38, cy-38, cx+38, cy+38, outline=COL_SEL, width=3, tags="sprite")
+            alpha_icon = p.icon if p.is_alive() else "🪦"
+            c.create_text(cx, cy, text=alpha_icon, font=("Consolas", 34), tags="sprite")
 
     # ---------------- TURN QUEUE ----------------
     def build_turn_preview(self, n=8):
@@ -373,7 +432,7 @@ class BattleDemo:
         start_x = W // 2 - (spacing * (n - 1)) // 2
         for i, e in enumerate(self.enemies):
             cx = start_x + i * spacing
-            cy = 230
+            cy = 230 + self.float_offset * (-1 if i % 2 else 1)  # Floating effect
             active = (self.current_unit is e and self.phase == "enemy_turn")
             targetable = self.phase == "select_target"
 
@@ -403,7 +462,7 @@ class BattleDemo:
         for i, p in enumerate(self.party):
             cx = start_x + i * 0
             cx = W - 260 + i * spacing
-            cy = 330
+            cy = 330 + self.float_offset  # Floating effect
             active = (self.current_unit is p and self.phase in ("select_command", "select_target"))
             if active:
                 c.create_oval(cx-38, cy-38, cx+38, cy+38, outline=COL_SEL, width=3)

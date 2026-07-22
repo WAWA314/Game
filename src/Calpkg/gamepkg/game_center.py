@@ -30,7 +30,39 @@ GRID_H = 16
 GAME_WIDTH = CELL_SIZE * GRID_W
 GAME_HEIGHT = CELL_SIZE * GRID_H
 
-SPEED_LEVELS = {"ช้า": 160, "ปกติ": 110, "เร็ว": 70}
+SPEED_LEVELS = {"ช้า": 160, "ปกติ": 130, "เร็ว": 70}
+
+
+# ================= Animation Helpers =================
+def pulse_color(base_color, pulse_color, widget, interval=500):
+    """Pulsing color effect"""
+    def toggle():
+        current = widget.cget("fg")
+        widget.configure(fg=pulse_color if current == base_color else base_color)
+        widget.after(interval, toggle)
+    return toggle
+
+
+def animate_scale(widget, scale_factor=1.1, duration=150):
+    """Scale animation on hover"""
+    orig_font = widget.cget("font")
+    def on_enter(_e):
+        size = int(orig_font.split()[-1])
+        widget.configure(font=("Segoe UI", int(size * scale_factor), orig_font.split()[1]))
+    def on_leave(_e):
+        widget.configure(font=orig_font)
+    return on_enter, on_leave
+
+
+def animate_win_flash(canvas, cells, flash_color="#fbbf24", delay=0):
+    """Flash effect when winning"""
+    def flash(step):
+        if step < 6:
+            color = flash_color if step % 2 == 0 else WIN_COLOR
+            for i in cells:
+                canvas.itemconfig(f"win_{i}", fill=color)
+            canvas.after(delay + 50, lambda: flash(step + 1))
+    return flash
 
 
 # ================= App Shell =================
@@ -292,7 +324,9 @@ class OXGame:
     def make_move(self, index, player):
         self.board[index] = player
         color = X_COLOR if player == "X" else O_COLOR
-        self.buttons[index].configure(text=player, fg=color, bg=CELL_COLOR)
+
+        # Animation: หมากว่างขึ้นมาแสดง
+        self.animate_piece_place(self.buttons[index], player, color)
 
         winner, line = self.check_winner()
         if winner:
@@ -301,6 +335,20 @@ class OXGame:
 
         self.current_player = "O" if self.current_player == "X" else "X"
         self.update_status()
+
+    def animate_piece_place(self, button, player, color):
+        """Animate piece appearing with scale effect"""
+        button.configure(text="", fg=color, bg=CELL_COLOR)
+        button.configure(font=("Segoe UI", 12, "bold"))
+
+        def grow(step):
+            if step <= 6:
+                sizes = [12, 16, 20, 24, 28, 32, 28]
+                button.configure(text=player, font=("Segoe UI", sizes[step], "bold"))
+                button.after(30, lambda: grow(step + 1))
+            else:
+                button.configure(font=("Segoe UI", 28, "bold"))
+        grow(0)
 
     def ai_move(self):
         if not self.game_active:
@@ -334,16 +382,36 @@ class OXGame:
         if winner == "DRAW":
             self.status_label.configure(text="🤝 เสมอกัน!", fg="#facc15")
             self.scores["DRAW"] += 1
-            self.score_draw_label.configure(text=str(self.scores["DRAW"]))
+            self.animate_score_change(self.score_draw_label, str(self.scores["DRAW"]))
         else:
-            for i in line:
-                self.buttons[i].configure(bg=WIN_COLOR)
+            # Flash animation for winning line
+            self.animate_win_flash(line)
             label = "AI" if (self.mode.get() == "ai" and winner == "O") else winner
             color = X_COLOR if winner == "X" else O_COLOR
             self.status_label.configure(text=f"🎉 {label} ชนะ!", fg=color)
             self.scores[winner] += 1
             target = self.score_x_label if winner == "X" else self.score_o_label
-            target.configure(text=str(self.scores[winner]))
+            self.animate_score_change(target, str(self.scores[winner]))
+
+    def animate_win_flash(self, line):
+        """Flash winning cells"""
+        def flash(step):
+            if step < 6:
+                color = "#fbbf24" if step % 2 == 0 else WIN_COLOR
+                for i in line:
+                    self.buttons[i].configure(bg=color)
+                self.parent.after(100, lambda: flash(step + 1))
+        flash(0)
+
+    def animate_score_change(self, label, value):
+        """Animate score counter up"""
+        old_val = int(label.cget("text"))
+        new_val = int(value)
+        def count(step):
+            if step <= new_val - old_val:
+                label.configure(text=str(old_val + step))
+                self.parent.after(30, lambda: count(step + 1))
+        count(0)
 
     def restart_game(self):
         self.board = [None] * 9
@@ -621,7 +689,7 @@ class SnakeGame:
 
         if new_head == self.food:
             self.score += 10
-            self.score_label.configure(text=str(self.score))
+            self.animate_food_eaten()
             self.food = self.spawn_food()
         else:
             self.snake.pop()
@@ -629,6 +697,17 @@ class SnakeGame:
         self.render()
         self.status_label.configure(text=f"คะแนน: {self.score}", fg=SNAKE_HEAD_COLOR)
         self.schedule_tick()
+
+    def animate_food_eaten(self):
+        """Flash effect when eating food"""
+        # Flash the canvas briefly
+        original_bg = self.canvas.cget("bg")
+        for _ in range(3):
+            self.canvas.configure(bg="#fbbf24")
+            self.canvas.after(50)
+            self.canvas.configure(bg=original_bg)
+            self.canvas.after(50)
+        self.score_label.configure(text=str(self.score))
 
     def game_over(self):
         self.game_active = False
